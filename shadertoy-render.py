@@ -196,8 +196,8 @@ class RenderingCanvas(app.Canvas):
         # self.set_channel_input(noise(resolution=256, nchannels=3), i=0)
         # self.set_channel_input(noise(resolution=256, nchannels=1), i=1)
 
-        self.set_channel_input(cubemap("unnamed.jpg"), i=0)
-        self.set_channel_input(cubemap("unnamed.jpg"), i=1)
+        self.set_channel_input(cubemap("unnamed1.jpg"), i=0)
+        self.set_channel_input(cubemap("unnamed1.jpg"), i=1)
 
         self.set_shader(glsl)
 
