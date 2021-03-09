@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import time
+from PIL import Image
 
 import numpy
 
@@ -49,10 +50,10 @@ uniform float     iTime;           // shader playback time (in seconds)
 uniform vec4      iMouse;                // mouse pixel coords
 uniform vec4      iDate;                 // (year, month, day, time in seconds)
 uniform float     iSampleRate;           // sound sample rate (i.e., 44100)
-uniform sampler2D iChannel0;             // input channel. XX = 2D/Cube
-uniform sampler2D iChannel1;             // input channel. XX = 2D/Cube
-uniform sampler2D iChannel2;             // input channel. XX = 2D/Cube
-uniform sampler2D iChannel3;             // input channel. XX = 2D/Cube
+uniform samplerCube iChannel0;             // input channel. XX = 2D/Cube
+uniform samplerCube iChannel1;             // input channel. XX = 2D/Cube
+uniform samplerCube iChannel2;             // input channel. XX = 2D/Cube
+uniform samplerCube iChannel3;             // input channel. XX = 2D/Cube
 uniform vec3      iChannelResolution[4]; // channel resolution (in pixels)
 uniform float     iChannelTime[4];       // channel playback time (in sec)
 uniform vec2      iOffset;               // pixel offset for tiled rendering
@@ -88,6 +89,35 @@ def warn(msg):
 def noise(resolution=64, nchannels=1):
     size = (resolution, resolution, nchannels)
     return numpy.random.randint(low=0, high=256, size=size).astype(numpy.uint8)
+
+def cubemap(filename):
+    image = Image.open(filename)
+    data = numpy.asarray(image)
+
+    
+
+    yBand = int(data.shape[0] / 3)
+    xBand = int(data.shape[1] / 4)
+    print("xBand, yBand:", xBand, yBand)
+
+    texture = numpy.zeros((6, xBand, yBand, 3), dtype=numpy.uint8)
+
+    texture[0] = data[yBand:2*yBand, 0:xBand, 0:3] # left
+    texture[1] = data[yBand:2*yBand, 2*xBand:3*xBand, 0:3] # right
+
+    top = data[0:yBand, xBand:2*xBand, 0:3]
+    top = numpy.flipud(numpy.fliplr(top))
+
+    bottom = data[2*yBand:3*yBand, xBand:2*xBand, 0:3]
+    bottom = numpy.flipud(numpy.fliplr(bottom))
+
+    texture[2] = top # top
+    texture[4] = data[yBand:2*yBand, 3*xBand:4*xBand, 0:3] # back
+    
+    texture[5] = data[yBand:2*yBand, xBand:2*xBand, 0:3] # center
+
+    texture[3] = bottom # bottom
+    return gloo.TextureCube(texture)
 
 
 class RenderingCanvas(app.Canvas):
@@ -163,8 +193,11 @@ class RenderingCanvas(app.Canvas):
         self.program['iOffset'] = 0.0, 0.0
 
         self.activate_zoom()
-        self.set_channel_input(noise(resolution=256, nchannels=3), i=0)
-        self.set_channel_input(noise(resolution=256, nchannels=1), i=1)
+        # self.set_channel_input(noise(resolution=256, nchannels=3), i=0)
+        # self.set_channel_input(noise(resolution=256, nchannels=1), i=1)
+
+        self.set_channel_input(cubemap("unnamed.jpg"), i=0)
+        self.set_channel_input(cubemap("unnamed.jpg"), i=1)
 
         self.set_shader(glsl)
 
@@ -197,12 +230,11 @@ class RenderingCanvas(app.Canvas):
             self.program['iResolution'] = self._output_size + (0.,)
             self.ensure_timer()
 
-    def set_channel_input(self, img, i=0):
-        tex = gloo.Texture2D(img)
+    def set_channel_input(self, tex, i=0):
         tex.interpolation = 'linear'
         tex.wrapping = 'repeat'
         self.program['iChannel%d' % i] = tex
-        self.program['iChannelResolution[%d]' % i] = img.shape
+        self.program['iChannelResolution[%d]' % i] = (tex.shape[0], tex.shape[1], tex.shape[2])
 
     def set_shader(self, glsl):
         self._glsl = glsl
